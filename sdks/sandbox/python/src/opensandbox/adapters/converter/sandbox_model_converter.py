@@ -227,7 +227,14 @@ class SandboxModelConverter:
 
         api_platform = UNSET
         if platform is not None:
-            api_platform = ApiPlatformSpec(os=platform.os, arch=platform.arch)
+            # Use from_dict to support both string-backed and enum-backed
+            # generated PlatformSpec models across generator versions.
+            api_platform = ApiPlatformSpec.from_dict(
+                {
+                    "os": platform.os,
+                    "arch": platform.arch,
+                }
+            )
 
         # Convert volumes to API model
         api_volumes = UNSET
@@ -353,7 +360,12 @@ class SandboxModelConverter:
 
         platform: PlatformSpec | None = None
         if hasattr(api_response, "platform") and not isinstance(api_response.platform, Unset):
-            platform = PlatformSpec(os=api_response.platform.os, arch=api_response.platform.arch)
+            platform = PlatformSpec.model_validate(
+                {
+                    "os": str(getattr(api_response.platform.os, "value", api_response.platform.os)),
+                    "arch": str(getattr(api_response.platform.arch, "value", api_response.platform.arch)),
+                }
+            )
 
         return SandboxCreateResponse(
             id=str(api_response.id),
@@ -404,7 +416,12 @@ class SandboxModelConverter:
 
         platform: PlatformSpec | None = None
         if hasattr(api_sandbox, "platform") and not isinstance(api_sandbox.platform, Unset):
-            platform = PlatformSpec(os=api_sandbox.platform.os, arch=api_sandbox.platform.arch)
+            platform = PlatformSpec.model_validate(
+                {
+                    "os": str(getattr(api_sandbox.platform.os, "value", api_sandbox.platform.os)),
+                    "arch": str(getattr(api_sandbox.platform.arch, "value", api_sandbox.platform.arch)),
+                }
+            )
 
         return SandboxInfo(
             id=api_sandbox.id,
