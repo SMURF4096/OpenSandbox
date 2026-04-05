@@ -349,7 +349,9 @@ def test_ensure_image_available_repulls_when_platform_omitted_and_cached_arch_di
 
 
 @patch("opensandbox_server.services.docker.docker")
-def test_ensure_image_available_does_not_repull_when_daemon_arch_is_alias(mock_docker):
+def test_ensure_image_available_does_not_repull_when_platform_omitted_and_cached_amd64(
+    mock_docker,
+):
     mock_client = MagicMock()
     mock_client.containers.list.return_value = []
     mock_docker.from_env.return_value = mock_client
@@ -357,9 +359,8 @@ def test_ensure_image_available_does_not_repull_when_daemon_arch_is_alias(mock_d
     cached_image = MagicMock()
     cached_image.attrs = {"Os": "linux", "Architecture": "amd64"}
     mock_client.images.get.return_value = cached_image
-    # Docker daemon commonly reports x86_64/aarch64 aliases.
+    # Docker daemon may report x86_64/aarch64 aliases; this should still match amd64.
     mock_client.info.return_value = {"OSType": "linux", "Architecture": "x86_64"}
-
     service = DockerSandboxService(config=_app_config())
     with patch.object(service, "_pull_image") as mock_pull:
         service._ensure_image_available(
@@ -1029,7 +1030,7 @@ async def test_create_sandbox_response_keeps_platform_null_when_unconstrained(mo
 
 
 @patch("opensandbox_server.services.docker.docker")
-def test_create_and_start_container_defaults_to_amd64_for_execd(mock_docker):
+def test_create_and_start_container_uses_unconstrained_platform_for_execd(mock_docker):
     mock_client = MagicMock()
     mock_client.containers.list.return_value = []
     mock_docker.from_env.return_value = mock_client
@@ -1057,7 +1058,7 @@ def test_create_and_start_container_defaults_to_amd64_for_execd(mock_docker):
     passed_platform = mock_prepare.call_args.args[2]
     assert passed_platform is not None
     assert passed_platform.os == "linux"
-    assert passed_platform.arch == "amd64"
+    assert passed_platform.arch == "arm64"
 
 
 @patch("opensandbox_server.services.docker.docker")

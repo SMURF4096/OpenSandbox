@@ -122,8 +122,6 @@ BOOTSTRAP_PATH = posixpath.join(OPENSANDBOX_DIR, "bootstrap.sh")
 HOST_NETWORK_MODE = "host"
 BRIDGE_NETWORK_MODE = "bridge"
 PENDING_FAILURE_TTL_SECONDS = int(os.environ.get("PENDING_FAILURE_TTL", "3600"))
-DEFAULT_PLATFORM_OS = "linux"
-DEFAULT_PLATFORM_ARCH = "amd64"
 EGRESS_SIDECAR_LABEL = "opensandbox.io/egress-sidecar-for"
 
 
@@ -501,14 +499,9 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
             logger.info("Restored expiration timers for %d sandbox(es).", restored)
 
     def _normalize_platform_key(self, platform: Optional[PlatformSpec]) -> str:
-        effective_platform = self._effective_platform(platform)
-        return f"{effective_platform.os}/{effective_platform.arch}"
-
-    @staticmethod
-    def _effective_platform(platform: Optional[PlatformSpec]) -> PlatformSpec:
-        if platform is not None:
-            return platform
-        return PlatformSpec(os=DEFAULT_PLATFORM_OS, arch=DEFAULT_PLATFORM_ARCH)
+        if platform is None:
+            return "default"
+        return f"{platform.os}/{platform.arch}"
 
     @staticmethod
     def _normalize_arch(arch: Optional[str]) -> Optional[str]:
@@ -1094,10 +1087,17 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
         sandbox_id: str,
         platform: Optional[PlatformSpec] = None,
     ) -> None:
+        expected_platform = platform or self._get_daemon_platform()
         try:
             with self._docker_operation(f"inspect image {image_uri}", sandbox_id):
                 image = self.docker_client.images.get(image_uri)
-                expected_platform = self._effective_platform(platform)
+                if expected_platform is None:
+                    logger.debug(
+                        "Sandbox %s using cached image %s without platform check (daemon platform unavailable)",
+                        sandbox_id,
+                        image_uri,
+                    )
+                    return
                 image_attrs = getattr(image, "attrs", {}) or {}
                 image_os = (image_attrs.get("Os") or image_attrs.get("os") or "").lower()
                 image_arch = (
@@ -1134,7 +1134,7 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
                 image_uri,
                 auth_config,
                 sandbox_id,
-                self._effective_platform(platform),
+                platform,
             )
         except DockerException as exc:
             raise HTTPException(
@@ -1224,7 +1224,7 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
                 environment,
                 host_config_kwargs,
                 exposed_ports,
-                self._effective_platform(request.platform),
+                request.platform,
             )
         except Exception:
             if sidecar_container is not None:
@@ -2342,7 +2342,11 @@ class DockerSandboxService(DockerDiagnosticsMixin, OSSFSMixin, SandboxService, E
                     },
                 )
             container = self.docker_client.containers.get(container_id)
-            runtime_platform = self._effective_platform(platform)
+            runtime_platform = self._resolve_platform_for_container(
+                container,
+                labels,
+                include_runtime_metadata=True,
+            )
             self._prepare_sandbox_runtime(container, sandbox_id, runtime_platform)
             with self._docker_operation("start sandbox container", sandbox_id):
                 container.start()

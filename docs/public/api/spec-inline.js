@@ -537,7 +537,9 @@ components:
 
         platform:
           $ref: '#/components/schemas/PlatformSpec'
-          description: Effective platform used for sandbox provisioning.
+          description: |
+            Platform constraint echoed from request or workload template.
+            Null when no scheduling constraint is provided.
 
         expiresAt:
           type: string
@@ -577,7 +579,9 @@ components:
 
         platform:
           $ref: '#/components/schemas/PlatformSpec'
-          description: Effective platform used for sandbox provisioning.
+          description: |
+            Platform constraint echoed from request or workload template.
+            Null when no scheduling constraint is provided.
 
         status:
           $ref: '#/components/schemas/SandboxStatus'
@@ -704,16 +708,23 @@ components:
         OS and CPU architecture for sandbox execution.
 
         Behavioral notes:
-        - If omitted, runtime uses existing default behavior (backward compatible).
+        - If omitted, the runtime applies its own default platform selection behavior.
+          For Docker, requests are created without an explicit platform override.
+          For Kubernetes, no \`kubernetes.io/os\` or \`kubernetes.io/arch\` constraint
+          is injected unless provided by request or workload template.
         - If provided and cannot be satisfied by runtime/template/pool constraints,
           request must fail explicitly.
+        - Runtime and image support still apply (for example, \`windows\` requires
+          compatible runtime and image support).
       properties:
         os:
           type: string
-          description: Target operating system (for example \`linux\`).
+          enum: [linux, windows]
+          description: Target operating system (for example \`linux\` or \`windows\`).
           example: linux
         arch:
           type: string
+          enum: [amd64, arm64]
           description: Target CPU architecture (for example \`amd64\` or \`arm64\`).
           example: arm64
       additionalProperties: false
@@ -734,8 +745,10 @@ components:
           description: |
             Optional platform constraint for sandbox scheduling/runtime selection.
 
-            If omitted, runtime default behavior applies. If specified, the runtime
-            must satisfy this constraint or fail explicitly.
+            If omitted, runtime default behavior applies (runtime-specific and not
+            a fixed architecture guarantee). If specified, the runtime must satisfy
+            this constraint or fail explicitly.
+            This field is only meaningful when scheduling constraints are set.
 
         timeout:
           oneOf:

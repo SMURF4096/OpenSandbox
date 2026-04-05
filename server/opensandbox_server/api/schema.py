@@ -332,7 +332,10 @@ class CreateSandboxRequest(BaseModel):
         None,
         description=(
             "Optional platform constraint for sandbox scheduling/runtime selection. "
-            "If specified, runtime must satisfy this platform or fail explicitly."
+            "If omitted, runtime default behavior applies (runtime-specific and not a fixed "
+            "architecture guarantee). If specified, runtime must satisfy this platform or fail "
+            "explicitly. Runtime and image support still apply (for example, windows requires "
+            "compatible runtime and image support)."
         ),
     )
     timeout: Optional[int] = Field(
